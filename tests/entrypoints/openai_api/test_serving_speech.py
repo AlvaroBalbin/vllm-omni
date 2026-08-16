@@ -721,6 +721,29 @@ class TestSpeechAPI:
         assert passed_params is not mock_engine.default_sampling_params_list
         assert passed_params[0].extra_args == {"existing_arg": "new_value", "new_arg": 123}
 
+    @pytest.mark.asyncio
+    async def test_resolve_ref_audio_diffusion_respects_allowed_local_media_path(self, mocker: MockerFixture, tmp_path):
+        """Diffusion-mode ref_audio resolution must honor --allowed-local-media-path."""
+        wav = np.linspace(-0.5, 0.5, 48000, dtype=np.float32)
+        pcm = (np.clip(wav, -1.0, 1.0) * 32767).astype("<i2")
+        audio_path = tmp_path / "ref.wav"
+        with wave.open(str(audio_path), "wb") as f:
+            f.setnchannels(1)
+            f.setsampwidth(2)
+            f.setframerate(24000)
+            f.writeframes(pcm.tobytes())
+
+        server = OmniOpenAIServingSpeech.for_diffusion(
+            diffusion_engine=mocker.MagicMock(),
+            model_name="test-model",
+            allowed_local_media_path=str(tmp_path),
+        )
+
+        samples, sr = await server._resolve_ref_audio(f"file://{audio_path}")
+
+        assert sr == 24000
+        assert len(samples) == 48000
+
 
 class TestTTSMethods:
     """Unit tests for TTS validation and parameter building."""
